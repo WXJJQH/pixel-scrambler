@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>像素混淆器 · 在线图片混淆工具（本地运算，不上传）</title>
+<meta name="description" content="免费的在线图片像素混淆工具：广义希尔伯特曲线 + 黄金比例偏移，纯浏览器本地运算，图片不上传服务器，同一张图可原样拼回。" />
+<meta name="theme-color" content="#f4f5f7" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff5252'/%3E%3Cstop offset='.5' stop-color='%23c86dd7'/%3E%3Cstop offset='1' stop-color='%2338d6a0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3C/svg%3E" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="像素混淆器 · 在线图片混淆工具" />
+<meta property="og:description" content="纯浏览器本地运算，图片不上传。混淆 / 解混淆 / 还原原图，一键下载。" />
+<meta name="twitter:card" content="summary" />
+<script>
+/* 在样式生效前就定下主题，避免暗色系统下先闪一下白 */
+(function(){
+  var m = "auto";
+  try {
+    var v = localStorage.getItem("pixelmixer.theme");
+    if (v === "light" || v === "dark" || v === "auto") m = v;
+  } catch (e) {}
+  var dark = m === "dark" || (m === "auto" && window.matchMedia &&
+             window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  document.documentElement.setAttribute("data-mode", m);
+})();
+</script>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --ink:#1c1f26; --muted:#6b7280;
+    --line:#e6e8ec; --accent:#ff5252; --accent-d:#e33c3c; --soft:#fff1f1;
+    --shadow:0 1px 2px rgba(16,24,40,.05), 0 10px 28px rgba(16,24,40,.07);
+  }
+  html[data-theme="dark"]{
+    --bg:#101218; --card:#181b22; --ink:#e7e9ef; --muted:#98a0ad;
+    --line:#252a33; --accent:#ff6060; --accent-d:#ff7d7d; --soft:#241a1c;
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 12px 32px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.65 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    transition:background .28s ease, color .28s ease;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px; margin:0 auto; padding:26px 18px 60px}
+
+  /* ---------- 顶栏 ---------- */
+  header{display:flex; align-items:center; gap:14px; margin-bottom:18px}
+  .logo{
+    width:44px; height:44px; border-radius:13px; flex:none;
+    background:conic-gradient(from 0deg,#ff5252,#ffb03a,#66d19e,#4aa8ff,#ff5252);
+    box-shadow:0 6px 16px rgba(255,82,82,.28);
+    animation:spin 14s linear infinite;
+  }
+  html[data-theme="dark"] .logo{box-shadow:0 6px 18px rgba(255,96,96,.22)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .brand h1{margin:0; font-size:19px; letter-spacing:.4px}
+  .brand p{margin:1px 0 0; font-size:12.5px; color:var(--muted)}
+  .grow{flex:1}
+  .icon-btn{
+    width:38px; height:38px; border-radius:11px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); cursor:pointer; font-size:16px;
+    display:grid; place-items:center; transition:transform .18s, border-color .18s;
+  }
+  .icon-btn:hover{transform:translateY(-1px); border-color:var(--accent)}
+
+  /* ---------- 卡片 ---------- */
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); padding:16px; transition:background .28s, border-color .28s;
+  }
+
+  /* ---------- 投放区 ---------- */
+  .drop{
+    position:relative; border:2px dashed var(--line); border-radius:14px;
+    min-height:300px; display:grid; place-items:center; overflow:hidden;
+    background:linear-gradient(180deg,transparent,rgba(128,128,128,.03));
+    transition:border-color .22s, background .22s, transform .22s;
+    cursor:pointer;
+  }
+  .drop:hover{border-color:var(--accent-d)}
+  .drop.over{border-color:var(--accent); background:var(--soft); transform:scale(.995)}
+  .drop.over::after{
+    content:"松手就放进来";
+    position:absolute; inset:auto 0 12px 0; text-align:center;
+    font-size:12.5px; color:var(--accent); letter-spacing:1px;
+  }
+  #view{display:none; max-width:100%; max-height:64vh; margin:auto; border-radius:8px}
+  #view.show{display:block; animation:pop .32s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes pop{from{opacity:0; transform:scale(.985)} to{opacity:1; transform:scale(1)}}
+
+  .hint{text-align:center; color:var(--muted); padding:44px 18px; pointer-events:none}
+  .hint-icon{
+    width:52px; height:52px; margin:0 auto 12px; border-radius:50%;
+    border:1.5px dashed var(--accent); color:var(--accent);
+    display:grid; place-items:center; font-size:26px; line-height:1;
+    animation:float 3.2s ease-in-out infinite;
+  }
+  @keyframes float{0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)}}
+  .hint-main{margin:0; font-size:15px; color:var(--ink)}
+  .hint-sub{margin:4px 0 0; font-size:12.5px}
+
+  /* 进度条 */
+  .bar{position:absolute; left:0; right:0; bottom:0; height:3px; background:transparent; opacity:0; transition:opacity .2s}
+  .bar.on{opacity:1}
+  .bar i{display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--accent),#ffb03a); transition:width .1s linear}
+
+  /* ---------- 像素流动效果层 ---------- */
+  .fx{
+    position:absolute; inset:0; width:100%; height:100%;
+    pointer-events:none; opacity:0;
+    transition:opacity .3s ease;
+    filter:blur(14px) saturate(1.35) brightness(1.06);
+  }
+  .fx.on{opacity:.85}
+  .shine{
+    position:absolute; inset:0; pointer-events:none; opacity:0;
+    background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.62) 50%,transparent 62%);
+    transform:translateX(-120%);
+  }
+  .shine.on{animation:shineSweep .92s cubic-bezier(.35,0,.2,1)}
+  @keyframes shineSweep{
+    0%{opacity:0; transform:translateX(-120%)}
+    22%{opacity:.9}
+    100%{opacity:0; transform:translateX(120%)}
+  }
+  .drop.land{animation:landShake .42s ease}
+  @keyframes landShake{
+    0%{transform:scale(1)} 30%{transform:scale(.982)}
+    62%{transform:scale(1.004)} 100%{transform:scale(1)}
+  }
+
+  /* ---------- 信息行 ---------- */
+  .meta{
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+    font-size:12.5px; color:var(--muted); padding:11px 4px 0; min-height:30px;
+  }
+  .chip{border:1px solid var(--line); border-radius:999px; padding:2px 9px; font-variant-numeric:tabular-nums}
+  .chip.warn{color:var(--accent); border-color:var(--accent)}
+
+  /* ---------- 按钮区 ---------- */
+  .actions{display:flex; flex-wrap:wrap; gap:9px; align-items:center; padding-top:12px}
+  .btn{
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    padding:9px 17px; border-radius:11px; font-size:14px; cursor:pointer;
+    transition:transform .14s, box-shadow .18s, background .18s, border-color .18s, opacity .18s;
+    font-family:inherit;
+  }
+  .btn:hover:not(:disabled){transform:translateY(-1.5px); box-shadow:0 6px 14px rgba(0,0,0,.09); border-color:var(--accent-d)}
+  .btn:active:not(:disabled){transform:translateY(0) scale(.975)}
+  .btn.primary{border-color:transparent; background:var(--accent); color:#fff}
+  .btn.primary:hover:not(:disabled){background:var(--accent-d); box-shadow:0 8px 18px rgba(255,82,82,.3)}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.42; cursor:not-allowed}
+  .sel{
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    padding:9px 10px; border-radius:11px; font-size:13.5px; font-family:inherit; cursor:pointer;
+  }
+
+  /* ---------- 原理卡 ---------- */
+  .demo-card{display:flex; gap:20px; align-items:center; margin-top:16px; flex-wrap:wrap}
+  .demo-canvas{
+    width:234px; height:162px; border-radius:12px; display:block;
+    image-rendering:pixelated; border:1px solid var(--line);
+  }
+  .demo-right{flex:1; min-width:230px}
+  .demo-right h2{margin:0 0 6px; font-size:15.5px}
+  .demo-right p{margin:0 0 8px; font-size:13.5px; color:var(--muted); line-height:1.7}
+  .demo-right code{
+    background:var(--soft); color:var(--accent-d); padding:1px 6px;
+    border-radius:6px; font-size:12.5px;
+  }
+  html[data-theme="dark"] .demo-right code{color:var(--accent)}
+
+  footer{margin-top:22px; text-align:center; font-size:12px; color:var(--muted); line-height:1.9}
+  footer b{color:var(--ink); font-weight:600}
+
+  /* ---------- 提示 ---------- */
+  #toast{
+    position:fixed; left:50%; bottom:26px; transform:translate(-50%,14px);
+    background:#23272f; color:#fff; padding:9px 18px; border-radius:11px;
+    font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .24s, transform .24s;
+    box-shadow:0 8px 24px rgba(0,0,0,.3); z-index:99; max-width:86vw;
+  }
+  #toast.on{opacity:1; transform:translate(-50%,0)}
+
+  @media (max-width:560px){
+    .drop{min-height:220px}
+    .demo-canvas{width:100%; height:auto}
+    .btn{padding:9px 13px; font-size:13.5px}
+    .actions{gap:8px}
+    .actions .grow{display:none}
+    .actions .sel{flex:1 1 auto; min-width:0}
+    #btnDl{flex:1 1 auto}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s !important; transition-duration:.001s !important}
+  }
+  /* ---------- 开屏动画 ---------- */
+  html.splash-on body{overflow:hidden}
+  html.splash-on .wrap{opacity:0; transform:translateY(10px)}
+  html:not(.splash-on) .wrap{
+    opacity:1; transform:none;
+    transition:opacity .5s ease .1s, transform .6s cubic-bezier(.16,1,.3,1) .1s;
+  }
+  #splash{
+    position:fixed; inset:0; z-index:9999; background:var(--bg); overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    transition:opacity .42s ease, transform .42s ease;
+  }
+  #splash::before{
+    content:""; position:absolute; inset:0; margin:auto; width:520px; height:520px;
+    border-radius:50%; opacity:0;
+    background:radial-gradient(circle, rgba(255,82,82,.16), rgba(255,82,82,0) 62%);
+    animation:spGlow 1.9s ease forwards;
+  }
+  #splash::after{
+    content:""; position:absolute; inset:0; opacity:0;
+    background-image:linear-gradient(var(--line) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:34px 34px;
+    -webkit-mask-image:radial-gradient(circle at 50% 47%, #000, transparent 62%);
+    animation:spGrid 1.9s ease forwards;
+  }
+  @keyframes spGlow{0%{opacity:0; transform:scale(.78)} 60%{opacity:1} 100%{opacity:.75; transform:scale(1)}}
+  @keyframes spGrid{0%{opacity:0} 100%{opacity:.9}}
+
+  .sp-inner{position:relative; z-index:3; display:flex; flex-direction:column; align-items:center; transition:opacity .2s, transform .2s}
+  #splash.rise .sp-inner{opacity:0; transform:translateY(-16px)}
+
+  .sp-mark{position:relative; width:120px; height:120px; display:grid; place-items:center}
+  .sp-ring{
+    position:absolute; width:106px; height:106px; border-radius:28px;
+    border:1.5px solid var(--accent); opacity:0;
+    animation:spRing 1.35s cubic-bezier(.2,.8,.2,1) .1s forwards;
+  }
+  @keyframes spRing{
+    0%{opacity:0; transform:scale(.55) rotate(-12deg)}
+    26%{opacity:.55}
+    100%{opacity:0; transform:scale(1.52) rotate(8deg)}
+  }
+  .sp-cube{position:relative; width:76px; height:76px; opacity:0;
+    animation:spCube .66s cubic-bezier(.16,1,.3,1) forwards;
+    box-shadow:0 10px 24px rgba(255,82,82,.28);
+    border-radius:20px;
+  }
+  .sp-cube i{
+    display:block; width:100%; height:100%; border-radius:20px;
+    background:conic-gradient(from 0deg,#ff5252,#ffb03a,#66d19e,#4aa8ff,#ff5252);
+    animation:spin 7s linear .66s infinite;
+  }
+  @keyframes spCube{
+    0%{opacity:0; transform:scale(.42) rotate(-16deg); filter:blur(14px)}
+    62%{filter:blur(0)}
+    100%{opacity:1; transform:scale(1) rotate(0deg)}
+  }
+  .sp-pix{
+    position:absolute; width:76px; height:76px; border-radius:20px; opacity:0;
+    background:conic-gradient(from 0deg,#ff5252,#ffb03a,#66d19e,#4aa8ff,#ff5252);
+    -webkit-mask-image:repeating-linear-gradient(0deg,#000 0 8px,transparent 8px 11px),
+                        repeating-linear-gradient(90deg,#000 0 8px,transparent 8px 11px);
+    -webkit-mask-composite:source-in; mask-composite:intersect;
+    animation:spPix .92s ease forwards;
+  }
+  @keyframes spPix{
+    0%{opacity:0; transform:scale(.5)}
+    28%{opacity:.9; transform:scale(.94)}
+    100%{opacity:0; transform:scale(1.14) rotate(9deg)}
+  }
+
+  .sp-title{display:flex; margin-top:8px; font-size:23px; font-weight:650; letter-spacing:.2em; color:var(--ink)}
+  .sp-title span{display:inline-block; opacity:0; transform:translateY(16px); filter:blur(7px);
+    animation:spChar .58s cubic-bezier(.16,1,.3,1) forwards}
+  @keyframes spChar{to{opacity:1; transform:translateY(0); filter:blur(0)}}
+
+  .sp-sub{margin-top:12px; font-size:12.5px; letter-spacing:.14em; color:var(--muted); opacity:0; animation:spFade .55s ease .72s forwards}
+  .sp-line{margin-top:24px; width:206px; height:2px; border-radius:2px; background:var(--line); overflow:hidden; opacity:0; animation:spFade .35s ease .48s forwards}
+  .sp-line i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),#ffb03a); animation:spBar .98s cubic-bezier(.45,0,.2,1) .5s forwards}
+  .sp-foot{margin-top:15px; font-size:10.5px; letter-spacing:.34em; color:var(--muted); opacity:0; animation:spFade .55s ease .95s forwards}
+  @keyframes spFade{to{opacity:1}}
+  @keyframes spBar{to{width:100%}}
+  #splash.out{opacity:0; transform:scale(1.014)}
+
+  .sp-dot{position:absolute; width:4px; height:4px; border-radius:1px; background:var(--accent); opacity:0;
+    animation-name:spDot; animation-timing-function:linear; animation-fill-mode:forwards}
+  @keyframes spDot{
+    0%{opacity:0; transform:translateY(6px) scale(.6)}
+    22%{opacity:.5}
+    100%{opacity:0; transform:translateY(-96px) scale(1)}
+  }
+
+</style>
+</head>
+<body><div id="splash" aria-hidden="true">
+  <div class="sp-inner">
+    <div class="sp-mark">
+      <div class="sp-ring"></div>
+      <div class="sp-pix"></div>
+      <div class="sp-cube"><i></i></div>
+    </div>
+    <div class="sp-title"><span>像</span><span>素</span><span>混</span><span>淆</span><span>器</span></div>
+    <div class="sp-sub">广义希尔伯特曲线 ＋ 黄金比例偏移</div>
+    <div class="sp-line"><i></i></div>
+    <div class="sp-foot">LOCAL ONLY · NO UPLOAD</div>
+  </div>
+</div>
+<div class="wrap">
+
+  <header>
+    <div class="logo" aria-hidden="true"></div>
+    <div class="brand">
+      <h1>像素混淆器</h1>
+      <p>广义希尔伯特曲线 ＋ 黄金比例偏移 · 全程本地运算</p>
+    </div>
+    <div class="grow"></div>
+    <button id="theme" class="icon-btn" title="主题：跟随系统" aria-label="主题：跟随系统">◐</button>
+  </header>
+
+  <main class="card">
+    <div id="drop" class="drop">
+      <canvas id="view"></canvas>
+      <canvas id="fx" class="fx"></canvas>
+      <div id="shine" class="shine"></div>
+      <div id="hint" class="hint">
+        <div class="hint-icon">＋</div>
+        <p class="hint-main">点这里选图，或把图片拖进来</p>
+        <p class="hint-sub">也支持 Ctrl + V 直接粘贴截图</p>
+      </div>
+      <div id="bar" class="bar"><i id="barFill"></i></div>
+    </div>
+
+    <div id="meta" class="meta">还没有选择图片</div>
+
+    <div class="actions">
+      <button id="btnEnc" class="btn primary" disabled>混淆</button>
+      <button id="btnDec" class="btn" disabled>解混淆</button>
+      <button id="btnReset" class="btn ghost" disabled>还原原图</button>
+      <button id="btnClear" class="btn ghost" title="清空当前图片（Esc）" disabled>清除</button>
+      <span class="grow"></span>
+      <select id="fmt" class="sel" title="下载格式">
+        <option value="png">PNG 无损</option>
+        <option value="jpeg">JPG 小体积</option>
+      </select>
+      <button id="btnDl" class="btn" disabled>下载</button>
+    </div>
+    <input id="file" type="file" accept="image/*" hidden />
+  </main>
+
+  <section class="card demo-card">
+    <canvas id="demo" class="demo-canvas"></canvas>
+    <div class="demo-right">
+      <h2>它凭什么能原样拼回来</h2>
+      <p>左边是同一套算法在跑：像素先被一条蛇形曲线排成一队，再整体往后挪 <code>0.618 × 像素总数</code> 位，于是排成一团噪点；解混淆就是沿同一条路挪回来。</p>
+      <p>偏移量只由图片宽高决定，不需要密码，所以同尺寸的图换个工具也能互相解开——这也意味着它挡的是“顺眼一瞥”，不是有心人。</p>
+    </div>
+  </section>
+
+  <footer>
+    <b>纯 HTML 单文件</b> · 不联网 · 不上传 · 关掉标签页什么都不剩<br />
+    混淆 ≈ 可逆的像素重排；真要保密请用加密，别用它保护证件和隐私
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   像素混淆器
+   算法：广义希尔伯特曲线（矩形域可一笔画完）＋ 黄金比例循环右移
+   offset = round(((√5-1)/2) * W * H)
+   ========================================================= */
+
+const PHI = (Math.sqrt(5) - 1) / 2;   // ≈ 0.6180339887
+const MAX_PIXELS = 8000000;           // 800 万像素上限，防止手机内存吃紧
+const MAX_SIDE = 4000;
+
+/* ---------- DOM ---------- */
+const view    = document.getElementById("view");
+const vctx    = view.getContext("2d");
+const drop    = document.getElementById("drop");
+const hint    = document.getElementById("hint");
+const meta    = document.getElementById("meta");
+const bar     = document.getElementById("bar");
+const barFill = document.getElementById("barFill");
+const fileIn  = document.getElementById("file");
+const btnEnc  = document.getElementById("btnEnc");
+const btnDec  = document.getElementById("btnDec");
+const btnRst  = document.getElementById("btnReset");
+const btnClr  = document.getElementById("btnClear");
+const btnDl   = document.getElementById("btnDl");
+const fmtSel  = document.getElementById("fmt");
+const toastEl = document.getElementById("toast");
+const themeBtn= document.getElementById("theme");
+
+/* ---------- 状态 ---------- */
+let orig = null;        // 原始图（ImageData），用于“还原”
+let cur  = null;        // 当前画面上显示的图（ImageData）
+let busy = false;
+let curveCache = { key: "", order: null };
+
+/* ---------- 小工具 ---------- */
+const frame = () => new Promise(r => requestAnimationFrame(r));
+let toastTimer = 0;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("on"), 2000);
+}
+function setButtons(on){
+  [btnEnc, btnDec, btnRst, btnClr, btnDl].forEach(b => b.disabled = !on);
+}
+
+/* =========================================================
+   核心 1：广义希尔伯特曲线 → 一维像素序号序列
+   (矩形版本，任意宽高都能一笔走完，且不重复不遗漏)
+   返回 Uint32Array，值为 y*W+x，长度 = W*H
+   ========================================================= */
+function gilbertOrder(W, H){
+  const N = W * H;
+  const out = new Uint32Array(N);
+  let k = 0;
+
+  function rec(x, y, ax, ay, bx, by){
+    const w = Math.abs(ax + ay);
+    const h = Math.abs(bx + by);
+    const dax = Math.sign(ax), day = Math.sign(ay);
+    const dbx = Math.sign(bx), dby = Math.sign(by);
+
+    if (h === 1){
+      for (let i = 0; i < w; i++){ out[k++] = y * W + x; x += dax; y += day; }
+      return;
+    }
+    if (w === 1){
+      for (let i = 0; i < h; i++){ out[k++] = y * W + x; x += dbx; y += dby; }
+      return;
+    }
+
+    let ax2 = Math.floor(ax / 2), ay2 = Math.floor(ay / 2);
+    let bx2 = Math.floor(bx / 2), by2 = Math.floor(by / 2);
+    const w2 = Math.abs(ax2 + ay2);
+    const h2 = Math.abs(bx2 + by2);
+
+    if (2 * w > 3 * h){
+      if ((w2 % 2) && (w > 2)){ ax2 += dax; ay2 += day; }
+      rec(x, y, ax2, ay2, bx, by);
+      rec(x + ax2, y + ay2, ax - ax2, ay - ay2, bx, by);
+    } else {
+      if ((h2 % 2) && (h > 2)){ bx2 += dbx; by2 += dby; }
+      rec(x, y, bx2, by2, ax2, ay2);
+      rec(x + bx2, y + by2, ax, ay, bx - bx2, by - by2);
+      rec(x + (ax - dax) + (bx2 - dbx), y + (ay - day) + (by2 - dby),
+          -bx2, -by2, -(ax - ax2), -(ay - ay2));
+    }
+  }
+
+  if (W >= H) rec(0, 0, W, 0, 0, H);
+  else        rec(0, 0, 0, H, W, 0);
+  return out;
+}
+
+function getCurve(W, H){
+  const key = W + "x" + H;
+  if (curveCache.key !== key){
+    curveCache = { key, order: gilbertOrder(W, H) };
+  }
+  return curveCache.order;
+}
+
+/* =========================================================
+   核心 2：像素置换
+   enc: 曲线第 i 位的像素 → 第 (i+offset) 位
+   dec: 反向搬运
+   ========================================================= */
+function permuteRange(src, W, H, dir, out, i0, i1){
+  const N = W * H;
+  const order = getCurve(W, H);
+  const off = Math.round(PHI * N) % N;
+  for (let i = i0; i < i1; i++){
+    let j = i + off;
+    if (j >= N) j -= N;           // off < N 且 i < N，最多减一次
+    const a = order[i] << 2;      // *4
+    const b = order[j] << 2;
+    if (dir === "enc") out.set(src.subarray(a, a + 4), b);
+    else               out.set(src.subarray(b, b + 4), a);
+  }
+  return out;
+}
+
+function permute(src, W, H, dir, out){
+  return permuteRange(src, W, H, dir, out, 0, W * H);
+}
+
+/* =========================================================
+   像素流动特效：整图沿希尔伯特曲线整体位移（和原理卡同一套机制）
+   · 混淆：位移 0 → 黄金比例偏移，末尾那帧就是混淆后的真实结果
+   · 解混淆：位移从偏移量退回 0，末尾那帧就是原图
+   · 最后仍由 draw() 落真实 ImageData，动画只负责让过程看得见
+   ========================================================= */
+const fx      = document.getElementById("fx");
+const fxctx   = fx.getContext("2d");
+const shineEl = document.getElementById("shine");
+
+/* 特效层画在“屏幕上显示的尺寸”上：小图画大一点、大图缩小省算力
+   （view 是 CSS 撑开的，fx 是 absolute 铺满，两者视觉尺寸一致） */
+const FX_MAX_SIDE = 1400;
+function fxResize(){
+  const W0 = view.width || 1, H0 = view.height || 1;
+  const s = Math.min(1, FX_MAX_SIDE / Math.max(W0, H0));
+  const w = Math.max(1, Math.round(W0 * s));
+  const h = Math.max(1, Math.round(H0 * s));
+  if (fx.width !== w || fx.height !== h){ fx.width = w; fx.height = h; }
+  else fxctx.clearRect(0, 0, w, h);
+  if (!fx.style.imageRendering && s > 1) fx.style.imageRendering = "pixelated";
+}
+function fxClear(){
+  fx.classList.remove("on");
+  if (fx.width && fx.height) fxctx.clearRect(0, 0, fx.width, fx.height);
+}
+function updateCanvasSize(){
+  fxResize();
+}
+
+/* 从画面里抽出最多 maxN 个采样点（带颜色），用于粒子 */
+function sampleColors(maxN){
+  const W = cur.width, H = cur.height;
+  const total = W * H;
+  const step = Math.max(1, Math.floor(total / maxN));
+  const pts = [];
+  const d = cur.data;
+  for (let i = 0; i < total; i += step){
+    const k = i << 2;
+    pts.push({
+      x: (i % W) / W,
+      y: ((i / W) | 0) / H,
+      r: d[k], g: d[k + 1], b: d[k + 2], a: d[k + 3]
+    });
+  }
+  return pts;
+}
+
+const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOut   = t => 1 - Math.pow(1 - t, 3);
+
+/* 单个粒子的绘制单元：为了不卡，按 2~3px 的方块画 */
+/* 处理中：把原理卡那套直接搬到大图上
+   · 整张图的像素沿希尔伯特曲线排成一队，被整体“推”着往前走
+   · 推的总距离 = 黄金比例偏移 round(0.618 × N)
+   · 混淆 0 → 全量；解混淆 全量 → 0，看着就是顺着原路退回去
+   · 最后停住的那一帧就是真实结果，收尾严丝合缝
+   ------------------------------------------------------------- */
+const ANIM_MAX = 900000;   // 动画层像素上限，超了等比缩小，只影响观感，不影响结果
+
+function makeAnimBase(from){
+  const W0 = from.width, H0 = from.height;
+  const s = Math.min(1, Math.sqrt(ANIM_MAX / (W0 * H0)));
+  const W = Math.max(1, Math.round(W0 * s));
+  const H = Math.max(1, Math.round(H0 * s));
+  if (W === W0 && H === H0) return { W, H, data: from.data, exact: true };
+  const tmp = document.createElement("canvas");
+  tmp.width = W0; tmp.height = H0;
+  tmp.getContext("2d").putImageData(from, 0, 0);
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const cx = cv.getContext("2d");
+  cx.imageSmoothingEnabled = true;
+  cx.drawImage(tmp, 0, 0, W, H);
+  return { W, H, data: cx.getImageData(0, 0, W, H).data, exact: false };
+}
+
+function flowAnim(dir, from, ms){
+  return new Promise(resolve => {
+    if (!from || !from.width || !from.height) return resolve();
+    const a = makeAnimBase(from);
+    const W = a.W, H = a.H, N = W * H;
+    const base32 = new Uint32Array(a.data.buffer, a.data.byteOffset, N);
+
+    const order = getCurve(W, H);
+    const off = Math.round(PHI * N) % N;
+
+    const outImg = new ImageData(W, H);
+    const dst32 = new Uint32Array(outImg.data.buffer);
+
+    const buf = document.createElement("canvas");
+    buf.width = W; buf.height = H;
+    const bctx = buf.getContext("2d");
+
+    const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const t0 = performance.now();
+
+    vctx.imageSmoothingEnabled = false;
+    view.classList.add("show");
+    hint.style.display = "none";
+
+    const render = k => {
+      let shift = Math.round(off * k) % N;
+      if (dir === "dec") shift = (N - shift) % N;
+      for (let i = 0; i < N; i++){
+        let j = i + shift;
+        if (j >= N) j -= N;
+        dst32[order[j]] = base32[order[i]];
+      }
+      if (a.exact){
+        vctx.putImageData(outImg, 0, 0);
+      } else {
+        bctx.putImageData(outImg, 0, 0);
+        vctx.drawImage(buf, 0, 0, from.width, from.height);
+      }
+    };
+
+    function frameLoop(now){
+      const t = Math.min(1, (now - t0) / ms);
+      render(ease(t));
+      if (t < 1) requestAnimationFrame(frameLoop);
+      else resolve();
+    }
+
+    render(0);
+    requestAnimationFrame(frameLoop);
+  });
+}
+/* 道具闪现：混淆完成后从中间泼开一圈 */
+function ripple(){
+  return new Promise(resolve => {
+    if (!view.width || !view.height) return resolve();
+    fxResize();
+    const W = fx.width, H = fx.height;
+    if (!W || !H) return resolve();
+    fx.classList.add("on");
+    const t0 = performance.now();
+    const ms = 620;
+    function f(now){
+      const t = Math.min(1, (now - t0) / ms);
+      fxctx.clearRect(0, 0, W, H);
+      fxctx.globalCompositeOperation = "lighter";
+      for (let r = 0; r < 3; r++){
+        const k = Math.max(0, t - r * 0.16) / (1 - r * 0.16);
+        if (k <= 0) continue;
+        const rad = easeOut(k) * Math.max(W, H) * 0.72;
+        fxctx.globalAlpha = (1 - k) * (0.5 - r * 0.13);
+        fxctx.strokeStyle = "#ffffff";
+        fxctx.lineWidth = Math.max(2, W * 0.006) * (1 - k * 0.6);
+        fxctx.beginPath();
+        fxctx.ellipse(W / 2, H / 2, rad, rad * 0.9, 0, 0, Math.PI * 2);
+        fxctx.stroke();
+      }
+      fxctx.globalAlpha = 1;
+      fxctx.globalCompositeOperation = "source-over";
+      if (t < 1) requestAnimationFrame(f);
+      else { fx.classList.remove("on"); fxClear(); resolve(); }
+    }
+    requestAnimationFrame(f);
+  });
+}
+
+function flashFinish(){
+  view.classList.remove("show");
+  void view.offsetWidth;
+  view.classList.add("show");
+  shineEl.classList.remove("on");
+  void shineEl.offsetWidth;
+  shineEl.classList.add("on");
+  drop.classList.remove("land");
+  void drop.offsetWidth;
+  drop.classList.add("land");
+}
+
+/* ---------- 绘制 ---------- */
+function draw(){
+  if (!cur) return;
+  if (view.width !== cur.width || view.height !== cur.height){
+    view.width = cur.width; view.height = cur.height;
+  }
+  vctx.putImageData(cur, 0, 0);
+  view.classList.add("show");
+  hint.style.display = "none";
+}
+
+/* =========================================================
+   执行混淆 / 解混淆（分块跑，保持动画流畅）
+   ========================================================= */
+async function run(dir){
+  if (!cur || busy) { if (!cur) toast("请先选择一张图片"); return; }
+  busy = true;
+  setButtons(false);
+  bar.classList.add("on");
+  barFill.style.width = "0%";
+
+  const W = cur.width, H = cur.height, N = W * H;
+  const src = cur.data;
+  const out = new Uint8ClampedArray(N * 4);
+  const fromImg = cur;
+
+  const ms = Math.min(1400, Math.max(760, 620 + Math.sqrt(N) * 1.1));
+  const animP = flowAnim(dir, fromImg, ms);
+
+  // 计算和动画并行跑，谁慢等谁
+  await frame();
+  const CHUNK = 250000;
+  for (let s = 0; s < N; s += CHUNK){
+    const e = Math.min(N, s + CHUNK);
+    permuteRange(src, W, H, dir, out, s, e);
+    barFill.style.width = ((e / N) * 100).toFixed(1) + "%";
+    await frame();
+  }
+
+  const next = new ImageData(out, W, H);
+  await animP;                 // 等粒子飞到终点、散掉
+  cur = next;
+  draw();                      // 真实像素落位
+  if (dir === "enc") await ripple();
+  else flashFinish();
+
+  bar.classList.remove("on");
+  barFill.style.width = "0%";
+  busy = false;
+  setButtons(true);
+  toast(dir === "enc" ? "混淆完成" : "解混淆完成");
+}
+
+/* =========================================================
+   载入图片
+   ========================================================= */
+function loadImageFile(file){
+  if (!file || !file.type || !file.type.startsWith("image/")){
+    return toast("请选择图片文件");
+  }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+
+  img.onload = () => {
+    const w0 = img.naturalWidth || img.width;
+    const h0 = img.naturalHeight || img.height;
+    if (!w0 || !h0){ URL.revokeObjectURL(url); return toast("图片尺寸异常"); }
+
+    const px = w0 * h0;
+    let tw = w0, th = h0, scaled = false;
+    if (px > MAX_PIXELS || w0 > MAX_SIDE || h0 > MAX_SIDE){
+      const s = Math.min(Math.sqrt(MAX_PIXELS / px), MAX_SIDE / w0, MAX_SIDE / h0, 1);
+      tw = Math.max(1, Math.round(w0 * s));
+      th = Math.max(1, Math.round(h0 * s));
+      scaled = true;
+    }
+
+    const cv = document.createElement("canvas");
+    cv.width = tw; cv.height = th;
+    const cx = cv.getContext("2d", { willReadFrequently: true });
+    cx.drawImage(img, 0, 0, tw, th);
+    URL.revokeObjectURL(url);
+
+    const data = cx.getImageData(0, 0, tw, th);
+    orig = data;
+    cur  = new ImageData(new Uint8ClampedArray(data.data), tw, th);
+
+    view.width = tw; view.height = th;
+    draw();
+    updateCanvasSize();
+    fxClear();
+    flashFinish();
+    setButtons(true);
+
+    const kb = Math.max(1, Math.round(file.size / 1024));
+    const parts = [
+      '<span class="chip">' + (file.name || "粘贴的图片").replace(/</g, "&lt;") + '</span>',
+      '<span class="chip">' + tw + " × " + th + '</span>',
+      '<span class="chip">' + kb + ' KB</span>',
+      '<span class="chip">偏移 ' + (Math.round(PHI * tw * th) % (tw * th)) + ' 位</span>'
+    ];
+    if (scaled){
+      parts.push('<span class="chip warn">原图 ' + w0 + "×" + h0 + '，已等比缩到 '+tw+"×"+th+'</span>');
+    }
+    meta.innerHTML = parts.join("");
+    if (scaled) toast("图片较大，已自动等比缩小");
+  };
+
+  img.onerror = () => { URL.revokeObjectURL(url); toast("图片读取失败"); };
+  img.src = url;
+}
+
+/* ---------- 交互绑定 ---------- */
+drop.addEventListener("click", () => fileIn.click());
+fileIn.addEventListener("change", () => {
+  if (fileIn.files && fileIn.files[0]) loadImageFile(fileIn.files[0]);
+  fileIn.value = "";
+});
+
+["dragenter", "dragover"].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); })
+);
+["dragleave", "drop"].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); })
+);
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadImageFile(f);
+});
+
+document.addEventListener("paste", e => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items){
+    if (it.type && it.type.startsWith("image/")){
+      const f = it.getAsFile();
+      if (f){ loadImageFile(f); break; }
+    }
+  }
+});
+
+btnEnc.addEventListener("click", () => run("enc"));
+btnDec.addEventListener("click", () => run("dec"));
+
+btnRst.addEventListener("click", () => {
+  if (!orig || busy) return;
+  const back = new ImageData(new Uint8ClampedArray(orig.data), orig.width, orig.height);
+  cur = back;
+  draw();
+  flashFinish();
+  toast("已还原为原图");
+});
+
+/* 清除：把当前图片和状态一起清干净，回到刚打开时的样子 */
+function clearImage(){
+  if (busy) return;
+  if (!cur && !orig) { toast("现在就是空的"); return; }
+
+  orig = null;
+  cur  = null;
+  curveCache = { key: "", order: null };
+
+  view.classList.remove("show");
+  view.width = 0; view.height = 0;
+  shineEl.classList.remove("on");
+  drop.classList.remove("land", "over");
+
+  fxClear();
+  fx.width = 0; fx.height = 0;
+
+  bar.classList.remove("on");
+  barFill.style.width = "0%";
+  hint.style.display = "";
+  meta.textContent = "还没有选择图片";
+  setButtons(false);
+  fileIn.value = "";
+  toast("已清除当前图片");
+}
+btnClr.addEventListener("click", clearImage);
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !busy && cur) clearImage();
+});
+
+btnDl.addEventListener("click", () => {
+  if (!cur) return toast("请先选择一张图片");
+  const type = fmtSel.value === "png" ? "image/png" : "image/jpeg";
+  const ext  = fmtSel.value === "png" ? "png" : "jpg";
+  view.toBlob(b => {
+    if (!b) return toast("导出失败，换张图试试");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = "scrambled_" + Date.now() + "." + ext;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast("已保存到下载文件夹");
+  }, type, 0.98);
+});
+
+/* ---------- 主题：跟随系统 / 浅色 / 深色 ---------- */
+const THEME_KEY = "pixelmixer.theme";
+const THEME_ORDER = ["auto", "light", "dark"];
+const THEME_LABEL = { auto: "跟随系统", light: "浅色", dark: "深色" };
+const THEME_ICON  = { auto: "◐", light: "☀", dark: "☾" };
+const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+let themeMode = (function(){
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    if (v === "auto" || v === "light" || v === "dark") return v;
+  } catch (e) {}
+  return "auto";
+})();
+
+function applyTheme(){
+  const dark = themeMode === "dark" || (themeMode === "auto" && !!darkQuery && darkQuery.matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  document.documentElement.setAttribute("data-mode", themeMode);
+  themeBtn.textContent = THEME_ICON[themeMode];
+  const label = "主题：" + THEME_LABEL[themeMode] + "（点击切换）";
+  themeBtn.title = label;
+  themeBtn.setAttribute("aria-label", label);
+}
+
+function setThemeMode(mode){
+  themeMode = mode;
+  try { localStorage.setItem(THEME_KEY, mode); } catch (e) {}
+  applyTheme();
+}
+
+themeBtn.addEventListener("click", () => {
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(themeMode) + 1) % THEME_ORDER.length];
+  setThemeMode(next);
+  toast("主题：" + THEME_LABEL[next]);
+});
+
+/* 系统切换深浅时，仅“跟随系统”模式下当场响应 */
+if (darkQuery){
+  const onChange = () => { if (themeMode === "auto") applyTheme(); };
+  if (darkQuery.addEventListener) darkQuery.addEventListener("change", onChange);
+  else if (darkQuery.addListener) darkQuery.addListener(onChange);
+}
+
+applyTheme();   // 同步按钮图标与标题（data-theme 已由 head 里的脚本先设好）
+
+/* =========================================================
+   原理演示：小画布上真实跑同一套算法
+   ========================================================= */
+(function demo(){
+  const DW = 26, DH = 18;
+  const cv = document.getElementById("demo");
+  cv.width = DW; cv.height = DH;
+  const cx = cv.getContext("2d");
+
+  const off = document.createElement("canvas");
+  off.width = DW; off.height = DH;
+  const ox = off.getContext("2d");
+
+  const g = ox.createLinearGradient(0, 0, DW, DH);
+  g.addColorStop(0, "#2b3042");
+  g.addColorStop(1, "#4a2b36");
+  ox.fillStyle = g;
+  ox.fillRect(0, 0, DW, DH);
+
+  // 画一只像素番茄，方便看出“乱了”和“回来了”
+  ox.fillStyle = "#ff5252";
+  ox.beginPath(); ox.arc(DW / 2, DH / 2 + 1.6, 6.2, 0, Math.PI * 2); ox.fill();
+  ox.fillStyle = "#ff9b9b";
+  ox.beginPath(); ox.arc(DW / 2 - 2.1, DH / 2 - 0.4, 1.9, 0, Math.PI * 2); ox.fill();
+  ox.fillStyle = "#4caf50";
+  ox.fillRect(DW / 2 - 1, DH / 2 - 6.6, 2, 3);
+  ox.beginPath(); ox.ellipse(DW / 2 - 3.7, DH / 2 - 5.6, 2.7, 1.1, -0.35, 0, Math.PI * 2); ox.fill();
+  ox.beginPath(); ox.ellipse(DW / 2 + 3.7, DH / 2 - 5.6, 2.7, 1.1, 0.35, 0, Math.PI * 2); ox.fill();
+  ox.fillStyle = "rgba(255,255,255,.9)";
+  ox.fillRect(3, DH - 4, 2, 2);
+  ox.fillRect(DW - 5, 2, 2, 2);
+
+  const base = ox.getImageData(0, 0, DW, DH).data;
+  const N = DW * DH;
+  const order = gilbertOrder(DW, DH);
+  const fullOff = Math.round(PHI * N) % N;
+  const outImg = new ImageData(DW, DH);
+
+  const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const DUR = 1700, HOLD = 520, REST = 760;
+
+  let t0 = performance.now();
+  function loop(now){
+    const cycle = DUR + HOLD + DUR + REST;
+    let t = (now - t0) % cycle;
+    let k;
+    if (t < DUR)               k = ease(t / DUR);
+    else if (t < DUR + HOLD)   k = 1;
+    else if (t < DUR * 2 + HOLD) k = 1 - ease((t - DUR - HOLD) / DUR);
+    else                       k = 0;
+
+    const off2 = Math.round(fullOff * k);
+    const d = outImg.data;
+    const NEG = Math.round(PHI * N) % N;
+    // 只沿曲线挪 off2 位（off2 从 0 增长到 fullOff）
+    for (let i = 0; i < N; i++){
+      let j = i + off2;
+      if (j >= N) j -= N;
+      const a = order[i] << 2;
+      const b = order[j] << 2;
+      d[b]     = base[a];
+      d[b + 1] = base[a + 1];
+      d[b + 2] = base[a + 2];
+      d[b + 3] = base[a + 3];
+    }
+    cx.putImageData(outImg, 0, 0);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+<script>
+/* 开屏动画：1.8 秒后自动收场，点击或按键可提前跳过 */
+(function(){
+  var sp = document.getElementById("splash");
+  if (!sp) return;
+  var root = document.documentElement, done = false;
+
+  // 细碎粒子，从下往上飘
+  var n = 20;
+  for (var i = 0; i < n; i++){
+    var d = document.createElement("span");
+    d.className = "sp-dot";
+    d.style.left = (6 + Math.random() * 88) + "%";
+    d.style.top  = (48 + Math.random() * 26) + "%";
+    d.style.animationDuration = (1.2 + Math.random() * 1.1).toFixed(2) + "s";
+    d.style.animationDelay = (Math.random() * 1.1).toFixed(2) + "s";
+    d.style.opacity = "0";
+    sp.appendChild(d);
+  }
+
+  // 标题逐字入场
+  var chars = sp.querySelectorAll(".sp-title span");
+  for (var j = 0; j < chars.length; j++){
+    chars[j].style.animationDelay = (0.34 + j * 0.055).toFixed(3) + "s";
+  }
+
+  function end(){
+    if (done) return;
+    done = true;
+    sp.classList.add("rise");
+    setTimeout(function(){
+      sp.classList.add("out");
+      root.classList.remove("splash-on");
+    }, 210);
+    setTimeout(function(){
+      if (sp.parentNode) sp.parentNode.removeChild(sp);
+    }, 720);
+  }
+
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  setTimeout(end, reduce ? 420 : 1780);
+  sp.addEventListener("click", end);
+  window.addEventListener("keydown", end);
+})();
+</script></body>
+</html>
